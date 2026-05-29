@@ -7,8 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 
 type Result = { error?: string; needsConfirmation?: boolean } | void;
 
-function originFromHeaders() {
-  const h = headers();
+async function originFromHeaders() {
+  const h = await headers();
   const proto = h.get("x-forwarded-proto") ?? "http";
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   return `${proto}://${host}`;

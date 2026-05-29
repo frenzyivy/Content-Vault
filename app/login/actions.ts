@@ -1,12 +1,11 @@
 "use server";
 
+import { signIn, signOut } from "@/auth"; // Imports your new Auth.js config
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
 
-type Result = { error?: string; needsConfirmation?: boolean } | void;
-
+/**
+ * Dynamically tracks your subdomain headers safely in Next.js 16+
+ */
 async function originFromHeaders() {
   const h = await headers();
   const proto = h.get("x-forwarded-proto") ?? "http";
@@ -14,54 +13,44 @@ async function originFromHeaders() {
   return `${proto}://${host}`;
 }
 
-export async function login(formData: FormData): Promise<Result> {
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
-
-  const supabase = createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { error: error.message };
-
-  revalidatePath("/", "layout");
-  redirect("/vault");
+/**
+ * Handles independent Google Provider Login Actions
+ */
+export async function loginWithGoogle() {
+  try {
+    const origin = await originFromHeaders();
+    await signIn("google", { 
+      redirectTo: `${origin}/vault` 
+    });
+  } catch (error) {
+    throw error;
+  }
 }
 
-export async function signup(formData: FormData): Promise<Result> {
-  const name = String(formData.get("name") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
-
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: { name },
-      emailRedirectTo: `${originFromHeaders()}/auth/callback`,
-    },
-  });
-  if (error) return { error: error.message };
-
-  // If Supabase has email confirmations enabled, session will be null until the user clicks the link.
-  if (!data.session) return { needsConfirmation: true };
-
-  revalidatePath("/", "layout");
-  redirect("/vault");
+/**
+ * Handles independent GitHub Provider Login Actions
+ */
+export async function loginWithGitHub() {
+  try {
+    const origin = await originFromHeaders();
+    await signIn("github", { 
+      redirectTo: `${origin}/vault` 
+    });
+  } catch (error) {
+    throw error;
+  }
 }
 
-export async function signInWithGoogle(): Promise<{ error?: string } | void> {
-  const supabase = createClient();
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: { redirectTo: `${originFromHeaders()}/auth/callback` },
-  });
-  if (error) return { error: error.message };
-  if (data?.url) redirect(data.url);
-}
-
-export async function logout() {
-  const supabase = createClient();
-  await supabase.auth.signOut();
-  revalidatePath("/", "layout");
-  redirect("/login");
+/**
+ * Handles system-wide User Session Disconnections
+ */
+export async function logOut() {
+  try {
+    const origin = await originFromHeaders();
+    await signOut({ 
+      redirectTo: `${origin}/login` 
+    });
+  } catch (error) {
+    throw error;
+  }
 }
